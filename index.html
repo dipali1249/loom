@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Loom — Core Prototype</title>
+<style>
+  :root{
+    --bg:#14110d;
+    --panel:#1e1a14;
+    --line:#332c22;
+    --ink:#efe6d6;
+    --muted:#a99b84;
+    --green:#3aa76d;
+    --red:#cf5b56;
+    --gold:#d9a441;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;margin:0;}
+  body{
+    background:radial-gradient(1200px 800px at 50% -10%, #241f17 0%, var(--bg) 60%);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    display:flex;align-items:center;justify-content:center;
+    padding:16px;
+  }
+  .app{width:100%;max-width:720px;}
+  .screen{display:none;}
+  .screen.on{display:block;}
+
+  /* ---------- Hub ---------- */
+  .hub{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:28px;}
+  .brand{font-size:13px;letter-spacing:.32em;color:var(--gold);text-transform:uppercase;margin:0 0 6px;}
+  h1{font-size:34px;margin:0 0 4px;font-weight:600;letter-spacing:.01em;}
+  .sub{color:var(--muted);margin:0 0 20px;line-height:1.55;}
+  .threads{display:flex;gap:10px;margin:18px 0 22px;flex-wrap:wrap;}
+  .thread{flex:1;min-width:120px;background:#191510;border:1px solid var(--line);border-radius:12px;padding:12px 14px;}
+  .thread .nm{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin-bottom:6px;}
+  .thread .dc{font-size:13px;color:var(--muted);line-height:1.45;}
+  .btn{
+    appearance:none;border:none;cursor:pointer;
+    background:linear-gradient(180deg,#e0ac4d,#c9942f);color:#241c0d;
+    font-size:17px;font-weight:700;letter-spacing:.02em;
+    padding:15px 26px;border-radius:12px;width:100%;
+    transition:transform .08s ease, filter .15s ease;
+  }
+  .btn:hover{filter:brightness(1.06);}
+  .btn:active{transform:scale(.985);}
+  .fine{font-size:12px;color:#7d725f;margin-top:14px;line-height:1.5;}
+
+  /* ---------- Game ---------- */
+  .hud{display:flex;align-items:center;gap:12px;margin-bottom:12px;}
+  .hud .stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 14px;font-variant-numeric:tabular-nums;}
+  .hud .stat .k{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);display:block;}
+  .hud .stat .v{font-size:22px;font-weight:700;}
+  .hud .spacer{flex:1;}
+  .clock{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--muted);}
+  .clock.warn{color:var(--gold);}
+
+  .rulebar{
+    background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--gold);
+    border-radius:12px;padding:14px 18px;margin-bottom:12px;
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    transition:background .18s ease, border-color .18s ease;
+  }
+  .rulebar .lbl{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);}
+  .rulebar .txt{font-size:26px;font-weight:700;letter-spacing:.01em;}
+  .rulebar.flash{background:#3a2f14;border-left-color:#f0c15a;}
+  .rulebar .tag{font-size:12px;color:var(--gold);font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:0;transition:opacity .2s;}
+  .rulebar.flash .tag{opacity:1;}
+
+  .field{
+    position:relative;width:100%;height:56vh;min-height:320px;
+    background:
+      repeating-linear-gradient(90deg, rgba(255,255,255,.018) 0 1px, transparent 1px 46px),
+      repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0 1px, transparent 1px 46px),
+      #100d09;
+    border:1px solid var(--line);border-radius:16px;overflow:hidden;
+    touch-action:none;user-select:none;
+  }
+  .stim{
+    position:absolute;width:58px;height:58px;
+    transform:translate(-50%,-50%);
+    cursor:pointer;will-change:transform,opacity;
+    animation:pop .12s ease-out;
+  }
+  @keyframes pop{from{opacity:0;}to{opacity:1;}}
+  .stim.circle{border-radius:50%;}
+  .stim.triangle{clip-path:polygon(50% 4%,96% 96%,4% 96%);}
+  .stim.green{background:radial-gradient(circle at 35% 30%, #55c489, var(--green));box-shadow:0 0 22px rgba(58,167,109,.35);}
+  .stim.red{background:radial-gradient(circle at 35% 30%, #e07a74, var(--red));box-shadow:0 0 22px rgba(207,91,86,.32);}
+  .stim.dying{opacity:0;transition:opacity .12s linear;}
+
+  .flashfx{
+    position:absolute;inset:0;pointer-events:none;opacity:0;
+    background:radial-gradient(circle at 50% 50%, rgba(240,193,90,.28), transparent 60%);
+    transition:opacity .12s ease;
+  }
+  .flashfx.on{opacity:1;}
+
+  .overlay{
+    position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:rgba(16,13,9,.86);backdrop-filter:blur(2px);text-align:center;padding:24px;
+  }
+  .overlay .big{font-size:15px;letter-spacing:.24em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+  .overlay .rule{font-size:32px;font-weight:800;}
+  .overlay .count{font-size:64px;font-weight:800;color:var(--gold);margin-top:8px;font-variant-numeric:tabular-nums;}
+
+  /* ---------- Results ---------- */
+  .res{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:26px;}
+  .res h2{margin:0 0 2px;font-size:26px;font-weight:600;}
+  .res .lead{color:var(--muted);margin:0 0 20px;line-height:1.55;}
+  .insight{
+    background:#191510;border:1px solid var(--line);border-left:5px solid var(--gold);
+    border-radius:12px;padding:14px 18px;margin:0 0 20px;line-height:1.6;font-size:15px;
+  }
+  .insight b{color:var(--gold);}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;}
+  .card{background:#191510;border:1px solid var(--line);border-radius:12px;padding:14px;}
+  .card .k{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);}
+  .card .v{font-size:28px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:4px;}
+  .card .v.good{color:var(--green);}
+  .card .v.bad{color:var(--red);}
+  .tracewrap{margin:6px 0 8px;}
+  .tracelbl{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+  .trace{
+    position:relative;height:64px;background:#100d09;border:1px solid var(--line);border-radius:10px;overflow:hidden;
+  }
+  .tick{position:absolute;bottom:8px;width:3px;border-radius:2px;transform:translateX(-50%);}
+  .tick.hit{height:16px;background:var(--green);}
+  .tick.wrong{height:30px;background:var(--red);}
+  .tick.miss{height:22px;background:#8a5a2b;}
+  .mutline{position:absolute;top:0;bottom:0;width:0;border-left:2px dashed var(--gold);opacity:.8;}
+  .mutlbl{position:absolute;top:3px;transform:translateX(-50%);font-size:9px;color:var(--gold);letter-spacing:.1em;}
+  .axis{position:relative;height:16px;color:#6f6552;font-size:10px;font-variant-numeric:tabular-nums;}
+  .axis span{position:absolute;transform:translateX(-50%);}
+  .segs{margin:16px 0 22px;border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .segrow{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;font-size:13px;padding:10px 14px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums;}
+  .segrow:first-child{border-top:none;background:#191510;color:var(--muted);font-size:11px;letter-spacing:.12em;text-transform:uppercase;}
+  .segrow.post{background:rgba(240,193,90,.06);}
+  .segrow .hi{color:var(--gold);}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:18px;}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HUB -->
+  <section id="hub" class="screen on">
+    <div class="hub">
+      <p class="brand">Loom &middot; Core Prototype</p>
+      <h1>The Loom Room</h1>
+      <p class="sub">One cloth. Ninety seconds. The rule will change &mdash; your job is to keep up. Tap what the rule asks for, and only that.</p>
+
+      <div class="threads">
+        <div class="thread"><div class="nm">The Rule</div><div class="dc">A banner tells you what to tap. It mutates every 15 seconds, without warning.</div></div>
+        <div class="thread"><div class="nm">Inhibition</div><div class="dc">Tapping something the rule does not want is an error. So is missing what it does.</div></div>
+        <div class="thread"><div class="nm">The Trace</div><div class="dc">At the end, you see how you behaved around every rule change &mdash; not just your score.</div></div>
+      </div>
+
+      <button class="btn" id="startBtn">Begin the first cloth</button>
+      <p class="fine">Shapes drift in and fade fast. Tap a green circle when the rule says green or circle; tap a red triangle when it says red or triangle. Wrong taps and misses both count against you.</p>
+    </div>
+  </section>
+
+  <!-- GAME -->
+  <section id="game" class="screen">
+    <div class="hud">
+      <div class="stat"><span class="k">Score</span><span class="v" id="scoreV">0</span></div>
+      <div class="stat"><span class="k">Errors</span><span class="v" id="errV">0</span></div>
+      <div class="spacer"></div>
+      <div class="clock" id="clock">90</div>
+    </div>
+
+    <div class="rulebar" id="rulebar">
+      <div>
+        <div class="lbl">Current rule</div>
+        <div class="txt" id="ruleTxt">&mdash;</div>
+      </div>
+      <div class="tag">Rule changed</div>
+    </div>
+
+    <div class="field" id="field">
+      <div class="flashfx" id="flashfx"></div>
+      <div class="overlay" id="overlay">
+        <div class="big" id="ovBig">Read the rule</div>
+        <div class="rule" id="ovRule">&mdash;</div>
+        <div class="count" id="ovCount"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESULTS -->
+  <section id="results" class="screen">
+    <div class="res">
+      <h2>Your weave</h2>
+      <p class="lead">Here is how you behaved, not just how you scored.</p>
+      <div class="insight" id="insight"></div>
+
+      <div class="grid">
+        <div class="card"><div class="k">Catches</div><div class="v good" id="rHits">0</div></div>
+        <div class="card"><div class="k">Wrong taps</div><div class="v bad" id="rWrong">0</div></div>
+        <div class="card"><div class="k">Misses</div><div class="v bad" id="rMiss">0</div></div>
+      </div>
+
+      <div class="tracewrap">
+        <div class="tracelbl">The Trace &mdash; your 90 seconds</div>
+        <div class="trace" id="trace"></div>
+        <div class="axis" id="axis"></div>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--green)"></i>catch</span>
+        <span><i style="background:var(--red)"></i>wrong tap</span>
+        <span><i style="background:#8a5a2b"></i>miss</span>
+        <span><i style="background:var(--gold)"></i>rule change</span>
+      </div>
+
+      <div class="segs" id="segs"></div>
+
+      <button class="btn" id="againBtn">Weave again</button>
+      <p class="fine">The adaptive controller and full four-thread system are not in this slice. This prototype isolates the mutation engine and the Trace.</p>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Config ----------
+  var DURATION = 90;              // seconds
+  var LIFE = 1400;                // ms a stimulus lives
+  var SPAWN_MIN = 780, SPAWN_MAX = 1180;
+  var MUT_TIMES = [15,30,45,60,75]; // seconds
+  var RULES = {
+    green:    {txt:"TAP THE GREEN",     ok:function(s){return s.color==="green";}},
+    red:      {txt:"TAP THE RED",       ok:function(s){return s.color==="red";}},
+    circle:   {txt:"TAP THE CIRCLES",   ok:function(s){return s.shape==="circle";}},
+    triangle: {txt:"TAP THE TRIANGLES", ok:function(s){return s.shape==="triangle";}}
+  };
+  var KEYS = Object.keys(RULES);
+
+  // ---------- DOM ----------
+  var $ = function(id){return document.getElementById(id);};
+  var screens = {hub:$("hub"), game:$("game"), results:$("results")};
+  var field = $("field"), overlay=$("overlay");
+  var rulebar=$("rulebar"), ruleTxt=$("ruleTxt");
+  var scoreV=$("scoreV"), errV=$("errV"), clock=$("clock");
+  var flashfx=$("flashfx");
+
+  // ---------- State ----------
+  var running=false, startTime=0, now=0, elapsed=0, timeLeft=DURATION;
+  var currentRuleKey="green";
+  var nextSpawn=0, mutIndex=0;
+  var hits=0, wrong=0, miss=0;
+  var active=[];                  // live stimuli
+  var events=[];                  // {t, type}
+  var rafId=null;
+
+  // ---------- Audio ----------
+  var actx=null;
+  function audio(){ if(!actx){ try{actx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){} } return actx; }
+  function tone(freq,dur,type,vol){
+    var a=audio(); if(!a) return;
+    try{
+      var o=a.createOscillator(), g=a.createGain();
+      o.type=type||"sine"; o.frequency.value=freq;
+      g.gain.value=vol||0.05;
+      o.connect(g); g.connect(a.destination);
+      var t=a.currentTime; o.start(t);
+      g.gain.setValueAtTime(g.gain.value,t);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+(dur||0.12));
+      o.stop(t+(dur||0.12));
+    }catch(e){}
+  }
+  function sHit(){ tone(880,0.10,"sine",0.05); }
+  function sErr(){ tone(150,0.24,"sawtooth",0.045); }
+  function sMut(){ tone(520,0.10,"triangle",0.05); setTimeout(function(){tone(700,0.14,"triangle",0.05);},90); }
+
+  // ---------- Helpers ----------
+  function show(name){
+    for(var k in screens) screens[k].classList.remove("on");
+    screens[name].classList.add("on");
+  }
+  function ruleApplies(s){ return RULES[currentRuleKey].ok(s); }
+
+  function spawn(){
+    var el=document.createElement("div");
+    el.className="stim";
+    var shape = Math.random()<0.5 ? "circle" : "triangle";
+    var color = Math.random()<0.5 ? "green" : "red";
+    el.classList.add(shape,color);
+
+    var pad=44;
+    var w=field.clientWidth, h=field.clientHeight;
+    var x=pad+Math.random()*(w-2*pad);
+    var y=pad+Math.random()*(h-2*pad);
+    el.style.left=x+"px"; el.style.top=y+"px";
+
+    var s={el:el,shape:shape,color:color,resolved:false,expiresAt:now+LIFE};
+    el.addEventListener("pointerdown",function(ev){ ev.preventDefault(); ev.stopPropagation(); tap(s); });
+    field.appendChild(el);
+    active.push(s);
+  }
+
+  function killStim(s){
+    if(s.el && s.el.parentNode){
+      s.el.classList.add("dying");
+      var e=s.el; setTimeout(function(){ if(e.parentNode) e.parentNode.removeChild(e); },130);
+    }
+    var i=active.indexOf(s); if(i>=0) active.splice(i,1);
+  }
+
+  function tap(s){
+    if(!running || s.resolved) return;
+    s.resolved=true;
+    if(ruleApplies(s)){ hits++; events.push({t:elapsed,type:"hit"}); sHit(); }
+    else { wrong++; events.push({t:elapsed,type:"wrong"}); sErr(); }
+    killStim(s);
+    paintScore();
+  }
+
+  function paintScore(){ scoreV.textContent=hits; errV.textContent=(wrong+miss); }
+
+  function doMutation(){
+    var prev=currentRuleKey, next=prev;
+    while(next===prev){ next=KEYS[Math.floor(Math.random()*KEYS.length)]; }
+    currentRuleKey=next;
+    ruleTxt.textContent=RULES[next].txt;
+    rulebar.classList.add("flash");
+    flashfx.classList.add("on");
+    setTimeout(function(){ flashfx.classList.remove("on"); },160);
+    setTimeout(function(){ rulebar.classList.remove("flash"); },900);
+    events.push({t:elapsed,type:"mutation"});
+    sMut();
+  }
+
+  function setRule(key){
+    currentRuleKey=key;
+    ruleTxt.textContent=RULES[key].txt;
+  }
+
+  // ---------- Loop ----------
+  function loop(){
+    if(!running) return;
+    now=performance.now();
+    elapsed=(now-startTime)/1000;
+    timeLeft=Math.max(0,DURATION-elapsed);
+    clock.textContent=Math.ceil(timeLeft);
+    clock.classList.toggle("warn", timeLeft<=15);
+
+    if(now>=nextSpawn){ spawn(); nextSpawn = now + (SPAWN_MIN + Math.random()*(SPAWN_MAX-SPAWN_MIN)); }
+
+    for(var i=active.length-1;i>=0;i--){
+      var s=active[i];
+      if(!s.resolved && now>=s.expiresAt){
+        s.resolved=true;
+        if(ruleApplies(s)){ miss++; events.push({t:elapsed,type:"miss"}); }
+        killStim(s);
+        paintScore();
+      }
+    }
+
+    if(mutIndex<MUT_TIMES.length && elapsed>=MUT_TIMES[mutIndex]){ doMutation(); mutIndex++; }
+
+    if(timeLeft<=0){ endGame(); return; }
+    rafId=requestAnimationFrame(loop);
+  }
+
+  // ---------- Flow ----------
+  function startGame(){
+    running=false;
+    hits=wrong=miss=0; active=[]; events=[]; mutIndex=0;
+    paintScore();
+    field.querySelectorAll(".stim").forEach(function(e){e.remove();});
+    clock.textContent=DURATION; clock.classList.remove("warn");
+    rulebar.classList.remove("flash");
+    show("game");
+
+    var first=KEYS[Math.floor(Math.random()*KEYS.length)];
+    setRule(first);
+
+    // prep countdown
+    overlay.style.display="flex";
+    $("ovBig").textContent="Read the rule";
+    $("ovRule").textContent=RULES[first].txt;
+    var n=3;
+    $("ovCount").textContent=n;
+    audio();
+    var iv=setInterval(function(){
+      n--;
+      if(n>0){ $("ovCount").textContent=n; }
+      else{
+        clearInterval(iv);
+        overlay.style.display="none";
+        begin();
+      }
+    },800);
+  }
+
+  function begin(){
+    running=true;
+    startTime=performance.now();
+    now=startTime;
+    nextSpawn=startTime+500;
+    rafId=requestAnimationFrame(loop);
+  }
+
+  function endGame(){
+    running=false;
+    if(rafId) cancelAnimationFrame(rafId);
+    active.forEach(function(s){ if(s.el&&s.el.parentNode) s.el.remove(); });
+    active=[];
+    renderResults();
+    show("results");
+  }
+
+  // ---------- Results ----------
+  function renderResults(){
+    $("rHits").textContent=hits;
+    $("rWrong").textContent=wrong;
+    $("rMiss").textContent=miss;
+
+    // Post-mutation window: 10s after each rule change
+    var W=10;
+    function inWindow(t){ for(var i=0;i<MUT_TIMES.length;i++){ if(t>=MUT_TIMES[i] && t<MUT_TIMES[i]+W) return true; } return false; }
+    var postErr=0,postTime=0,steadyErr=0,steadyTime=0;
+    events.forEach(function(e){ if(e.type==="wrong"||e.type==="miss"){ if(inWindow(e.t)) postErr++; else steadyErr++; } });
+    // durations: first 15s are steady; then alternate 10 post / 5 steady per 15s block
+    var total=DURATION;
+    postTime = Math.min(MUT_TIMES.length*W, total);
+    steadyTime = Math.max(1, total-postTime);
+    var postRate = postTime? (postErr/postTime*60) : 0;     // errors per minute
+    var steadyRate = steadyTime? (steadyErr/steadyTime*60) : 0;
+
+    var insight=$("insight");
+    if(postErr+steadyErr===0){
+      insight.innerHTML="A clean weave &mdash; no errors at all. Push for speed next time: the rule will move faster.";
+    }else if(postRate>steadyRate*1.15){
+      insight.innerHTML="After each rule change your error rate jumped to <b>"+postRate.toFixed(1)+" per minute</b>, versus <b>"+steadyRate.toFixed(1)+"</b> in steady play. That spike is the cost of rebuilding a stale rule &mdash; the exact thing Loom trains. Watch the gold lines on the Trace.";
+    }else{
+      insight.innerHTML="Your error rate held roughly steady across rule changes (<b>"+postRate.toFixed(1)+"</b> vs <b>"+steadyRate.toFixed(1)+" per minute). Strong switching. The mutations will get subtler.";
+    }
+
+    // Trace
+    var tr=$("trace"); tr.innerHTML="";
+    events.forEach(function(e){
+      var d=document.createElement("div");
+      d.className="tick "+e.type;
+      d.style.left=(e.t/DURATION*100)+"%";
+      tr.appendChild(d);
+    });
+    MUT_TIMES.forEach(function(m){
+      var l=document.createElement("div"); l.className="mutline"; l.style.left=(m/DURATION*100)+"%"; tr.appendChild(l);
+      var lb=document.createElement("div"); lb.className="mutlbl"; lb.style.left=(m/DURATION*100)+"%"; lb.textContent="M"; tr.appendChild(lb);
+    });
+
+    var ax=$("axis"); ax.innerHTML="";
+    [0,15,30,45,60,75,90].forEach(function(t){
+      var s=document.createElement("span"); s.style.left=(t/DURATION*100)+"%"; s.textContent=t+"s"; ax.appendChild(s);
+    });
+
+    // Segments
+    var bounds=[0].concat(MUT_TIMES).concat([DURATION]);
+    var segs=$("segs"); segs.innerHTML="";
+    var head=document.createElement("div"); head.className="segrow";
+    head.innerHTML="<div>Segment</div><div>Catches</div><div>Errors</div><div>Err / min</div>";
+    segs.appendChild(head);
+
+    for(var i=0;i<bounds.length-1;i++){
+      var a=bounds[i], b=bounds[i+1];
+      var h=0,e=0;
+      events.forEach(function(ev){
+        if(ev.t>=a && ev.t<b){
+          if(ev.type==="hit") h++;
+          else if(ev.type==="wrong"||ev.type==="miss") e++;
+        }
+      });
+      var rate=(e/(b-a)*60);
+      var row=document.createElement("div"); row.className="segrow"+(i>0?" post":"");
+      row.innerHTML="<div>"+a+"&ndash;"+b+"s"+(i>0?" <span class='hi'>post-change</span>":"")+"</div>"+
+                    "<div>"+h+"</div><div>"+e+"</div><div>"+(isFinite(rate)?rate.toFixed(1):"0.0")+"</div>";
+      segs.appendChild(row);
+    }
+  }
+
+  // ---------- Wire up ----------
+  $("startBtn").addEventListener("click", startGame);
+  $("againBtn").addEventListener("click", startGame);
+  window.addEventListener("resize", function(){ /* positions self-correct on next spawn */ });
+})();
+</script>
+</body>
+</html>
